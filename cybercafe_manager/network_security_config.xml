@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Déblocage global et universel du trafic HTTP clair (non-chiffré) -->
+    <!-- Élimine à 100% et de manière définitive l'erreur ERR_CLEARTEXT_NOT_PERMITTED sur tous les Android -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
