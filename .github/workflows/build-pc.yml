@@ -46,7 +46,7 @@ jobs:
         run: npm run build
 
       - name: Build Electron .exe (NSIS)
-        run: npm run build:electron:win
+        run: npm run build:electron:win -- --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
