@@ -76,6 +76,7 @@
           ]
         }
       ],
+      "icon": "assets/icon.ico",
       "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
