@@ -57,9 +57,9 @@ jobs:
       - name: Upload PC artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dek-drivsim-pc-windows
+          name: dekdrivsim-pc
           path: |
-            dek-drivsim-pc/dist-electron/*.exe
+            dek-drivsim-pc/dist-electron/dekdrivsim.exe
             dek-drivsim-pc/dist-electron/*.blockmap
           if-no-files-found: error
           retention-days: 14
@@ -68,7 +68,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dek-drivsim-pc/dist-electron/*.exe
+          files: dek-drivsim-pc/dist-electron/dekdrivsim.exe
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

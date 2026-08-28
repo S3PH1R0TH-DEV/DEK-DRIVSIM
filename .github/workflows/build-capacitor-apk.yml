@@ -82,9 +82,17 @@ jobs:
           KEY_ALIAS: dekdrivsim
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
+      - name: Rename APK to dekdrivsim.apk
+        run: |
+          SRC=$(find android/app/build/outputs/apk/release -name "app-release.apk" | head -1)
+          DST=$(dirname "$SRC")/dekdrivsim.apk
+          mv "$SRC" "$DST"
+          echo "Renamed: $SRC -> $DST"
+          ls -lh "$DST"
+
       - name: Verify APK signature
         run: |
-          APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          APK=$(find android/app/build/outputs/apk/release -name "dekdrivsim.apk" | head -1)
           echo "APK: $APK"
           ls -lh "$APK"
           apksigner verify --print-certs "$APK" || jarsigner -verify -verbose -certs "$APK" | head -40
@@ -92,8 +100,8 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dek-drivsim-capacitor-release
-          path: dek-drivsim-pc/android/app/build/outputs/apk/release/*.apk
+          name: dekdrivsim-apk
+          path: dek-drivsim-pc/android/app/build/outputs/apk/release/dekdrivsim.apk
           if-no-files-found: error
           retention-days: 14
 
@@ -104,7 +112,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dek-drivsim-pc/android/app/build/outputs/apk/release/*.apk
+          files: dek-drivsim-pc/android/app/build/outputs/apk/release/dekdrivsim.apk
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -50,6 +50,7 @@
     "appId": "com.dek.drivsim",
     "productName": "DEK-DRIVSIM CyberCafe",
     "copyright": "Copyright © 2026 DEK-DRIVSIM",
+    "artifactName": "dekdrivsim.${ext}",
     "publish": null,
     "directories": {
       "output": "dist-electron",
