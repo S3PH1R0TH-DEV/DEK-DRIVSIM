@@ -1,0 +1,52 @@
+# Secrets & Keystore - NE JAMAIS COMMITER
+*.keystore
+*.jks
+*.p12
+release.keystore
+dekdrivsim.keystore
+android/keystore.properties
+android/app/release.keystore
+dek-drivsim-pc/android/keystore.properties
+dek-drivsim-pc/release.keystore
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.db
+*.sqlite
+cybercafe_manager/cybercafe.db
+
+# Node / Electron
+node_modules/
+dek-drivsim-pc/node_modules/
+dek-drivsim-pc/dist/
+dek-drivsim-pc/dist-electron/
+dek-drivsim-pc/android/app/build/
+dek-drivsim-pc/android/.gradle/
+dek-drivsim-pc/android/build/
+dek-drivsim-pc/android/capacitor-cordova-android-plugins/
+dek-drivsim-pc/android/app/src/main/assets/public/
+dek-drivsim-pc/android/app/src/main/assets/capacitor.config.json
+dek-drivsim-pc/android/app/src/main/assets/capacitor.plugins.json
+
+# Buildozer legacy
+.buildozer/
+bin/
+*.apk
+*.aab
+*.ap_
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

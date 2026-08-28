@@ -1,0 +1,23 @@
+{
+  "appId": "com.dek.drivsim",
+  "appName": "DEK-DRIVSIM CyberCafe",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "cleartext": true,
+    "androidScheme": "http"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true,
+    "backgroundColor": "#04050a"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "backgroundColor": "#04050a",
+      "showSpinner": false
+    }
+  }
+}

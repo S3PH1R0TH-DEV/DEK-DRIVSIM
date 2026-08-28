@@ -6,6 +6,7 @@ Il gère de manière autonome l'initialisation de la base de données, la sécur
 """
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for, Response
+from flask_cors import CORS
 import sqlite3
 import random
 import string
@@ -16,7 +17,12 @@ import csv
 import io
 
 app = Flask(__name__)
-app.secret_key = 'senet_cybercafe_secret_key'
+app.secret_key = os.environ.get('DEK_SECRET_KEY', 'senet_cybercafe_secret_key')
+# CORS : autorise uniquement le réseau local ; en Electron/Capacitor le origin est file:// ou capacitor://
+# On n'active pas supports_credentials avec wildcard (invalide côté navigateur)
+CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=False)
+# Limite taille payload + JSON strict
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 
 # --- COUCHE DE BASE DE DONNÉES (DATABASE LAYER CONSOLIDATED) ---
 
@@ -1073,21 +1079,30 @@ def role_setup():
 
 @app.route('/api/setup-role', methods=['POST'])
 def api_setup_role():
-    data = request.json or {}
-    password = data.get('password', '').strip()
-    client_ip = request.remote_addr
-    
+    data = request.get_json(silent=True) or {}
+    password = (data.get('password') or '').strip()
+    # L'IP fournie par le client (utile pour Electron/Capacitor) sinon remote_addr
+    client_ip = (data.get('ip') or request.remote_addr or '127.0.0.1').strip()
+
+    # Si aucun password fourni mais qu'un rôle est déjà mémorisé -> auto-login
+    existing = get_device_role(client_ip)
+    if not password and existing in ('admin', 'cashier'):
+        return jsonify({'success': True, 'role': existing, 'redirect': f'/{existing}'})
+
     settings = get_settings()
     admin_pwd = settings.get('admin_password', 'admin123')
     cashier_pwd = settings.get('cashier_password', 'caissier123')
-    
+
     if password == admin_pwd:
         set_device_role(client_ip, 'admin')
         return jsonify({'success': True, 'role': 'admin', 'redirect': '/admin'})
     elif password == cashier_pwd:
         set_device_role(client_ip, 'cashier')
         return jsonify({'success': True, 'role': 'cashier', 'redirect': '/cashier'})
-        
+
+    # Pas de rôle mémorisé et password invalide -> message clair
+    if not password:
+        return jsonify({'success': False, 'message': 'Veuillez saisir votre code d\'activation'})
     return jsonify({'success': False, 'message': 'Code d\'activation incorrect'})
 
 @app.route('/admin')
@@ -1392,13 +1407,38 @@ def api_get_tickets():
 
 @app.route('/api/tickets/generate', methods=['POST'])
 def api_generate_tickets():
-    data = request.json or {}
-    count = int(data.get('count', 10))
-    duration = int(data.get('duration', 60))
-    price = int(data.get('price', 500))
-    
+    data = request.get_json(silent=True) or {}
+    try:
+        count = max(1, min(50, int(data.get('count', 10))))
+        duration = int(data.get('duration', data.get('duration_mins', 60)))
+        price = int(data.get('price', 500))
+        if duration <= 0 or price < 0:
+            raise ValueError()
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'message': 'Paramètres invalides'}), 400
     tickets = generate_tickets(count, duration, price)
     return jsonify({'success': True, 'tickets_count': len(tickets), 'tickets': tickets})
+
+# Alias compat React (anciens noms)
+@app.route('/api/schools', methods=['GET'])
+def api_get_schools_alias():
+    return jsonify(get_driving_schools())
+
+@app.route('/api/referrals', methods=['GET'])
+def api_get_referrals_alias():
+    return jsonify(get_all_referrals())
+
+@app.route('/api/cashier-evaluations', methods=['GET'])
+def api_get_evals_alias():
+    return jsonify(get_cashier_evaluations())
+
+@app.route('/api/connection-logs', methods=['GET'])
+def api_get_logs_alias():
+    return jsonify(get_all_connection_logs())
+
+@app.route('/api/settings', methods=['GET'])
+def api_get_settings():
+    return jsonify(get_settings())
 
 @app.route('/api/players', methods=['GET'])
 def api_get_players():
@@ -1513,8 +1553,13 @@ def api_delete_game(game_id):
 
 @app.route('/api/settings', methods=['POST'])
 def api_update_settings():
-    data = request.json or {}
-    update_settings(data)
+    data = request.get_json(silent=True) or {}
+    # Whitelist des clés modifiables
+    allowed = {'cyber_name','currency','hourly_rate','wifi_ssid','wifi_password','admin_password','cashier_password','cashier_referral_bonus'}
+    filtered = {k: str(v).strip() for k, v in data.items() if k in allowed and str(v).strip()}
+    if not filtered:
+        return jsonify({'success': False, 'message': 'Aucun paramètre valide'}), 400
+    update_settings(filtered)
     return jsonify({'success': True, 'message': 'Paramètres enregistrés'})
 
 @app.route('/api/dashboard/stats', methods=['GET'])

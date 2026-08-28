@@ -1,9 +1,11 @@
-name: Build & Release APK (Buildozer)
+name: Build & Release APK (Legacy Buildozer - DEPRECATED)
+
+# DEPRECATED: Utiliser build-capacitor-apk.yml pour la nouvelle app Capacitor
+# Ce workflow est conservé pour référence / rollback
+# Pour builder la version Capacitor signée dekdrivsim : voir build-capacitor-apk.yml
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  workflow_dispatch:  # Seulement manuel maintenant
 
 jobs:
   build:
@@ -51,11 +53,11 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: dek-drivsim-release
+          name: dek-drivsim-legacy-buildozer
           path: bin/*.apk
 
       - name: Create Release
-        if: github.ref == 'refs/heads/main'
+        if: false # Désactivé - utiliser build-capacitor-apk.yml
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">DEK-DRIVSIM</string>
+    <string name="title_activity_main">DEK-DRIVSIM</string>
+    <string name="package_name">com.dek.drivsim</string>
+    <string name="custom_url_scheme">com.dek.drivsim</string>
+</resources>
