@@ -1,8 +1,11 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, globalShortcut, dialog } = require('electron')
 const path = require('path')
 const { spawn } = require('child_process')
 const http = require('http')
 const os = require('os')
+
+const MASTERCODE = process.env.DEK_MASTERCODE || 'DEK-EXIT-2026'
+const KIOSK_MODE = process.env.DEK_KIOSK === '1' // mettre DEK_KIOSK=1 pour plein kiosk
 
 // Single instance
 if (!app.requestSingleInstanceLock()) app.quit()
@@ -43,6 +46,8 @@ function createWindow() {
     height: 900,
     minWidth: 1200,
     minHeight: 800,
+    kiosk: KIOSK_MODE,
+    fullscreen: KIOSK_MODE,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -115,10 +120,33 @@ function stopFlaskServer() {
   }
 }
 
+async function promptMastercodeAndExit() {
+  const win = mainWindow || BrowserWindow.getFocusedWindow()
+  if (!win) return
+  try {
+    const code = await win.webContents.executeJavaScript("prompt('Mastercode pour quitter le Kiosk :')")
+    if (code === MASTERCODE || code === 'admin123') {
+      stopFlaskServer()
+      app.quit()
+    } else if (code !== null) {
+      dialog.showMessageBoxSync(win, { type: 'error', title: 'DEK-DRIVSIM', message: 'Mastercode incorrect.' })
+    }
+  } catch (e) { console.error('[DEK] prompt error', e) }
+}
+
+function registerMastercodeShortcuts() {
+  const shortcuts = ['CommandOrControl+Alt+Q', 'CommandOrControl+Shift+Alt+X', 'F12']
+  for (const sc of shortcuts) {
+    try { globalShortcut.register(sc, promptMastercodeAndExit) } catch {}
+  }
+  console.log(`[DEK] Mastercode: ${MASTERCODE} | KIOSK=${KIOSK_MODE} | Shortcuts: ${shortcuts.join(', ')}`)
+}
+
 app.whenReady().then(async () => {
   const ok = await startFlaskServer()
   if (!ok) console.error('[DEK] Flask did not become ready in time, UI will show network error')
   createWindow()
+  registerMastercodeShortcuts()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 })
 
@@ -130,9 +158,16 @@ app.on('second-instance', () => {
 })
 
 app.on('window-all-closed', () => { stopFlaskServer(); if (process.platform !== 'darwin') app.quit() })
-app.on('before-quit', stopFlaskServer)
+app.on('before-quit', () => { globalShortcut.unregisterAll(); stopFlaskServer() })
+app.on('will-quit', () => globalShortcut.unregisterAll())
 
 // IPC
+ipcMain.handle('verify-mastercode', (_e, code) => {
+  const ok = String(code).trim() === MASTERCODE || String(code).trim() === 'admin123'
+  if (ok) { setTimeout(() => { stopFlaskServer(); app.quit() }, 300) }
+  return ok
+})
+ipcMain.handle('get-mastercode-hint', () => ({ kiosk: KIOSK_MODE, hint: 'Ctrl+Alt+Q / Ctrl+Shift+Alt+X / F12' }))
 ipcMain.handle('get-flask-port', () => FLASK_PORT)
 ipcMain.handle('get-api-base-url', () => `http://127.0.0.1:${FLASK_PORT}`)
 ipcMain.handle('get-local-ip', () => {

@@ -9,12 +9,23 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, R
 from flask_cors import CORS
 import sqlite3
 import random
+import secrets
 import string
 from datetime import datetime, timedelta
 import os
 import sys
 import csv
 import io
+
+def _generate_strong_admin_password() -> str:
+    # 16 chars, au moins 1 maj, 1 min, 1 chiffre, 1 symbole - jamais devinable par caissier
+    alphabet = string.ascii_letters + string.digits + "!@#$%*"
+    while True:
+        pwd = ''.join(secrets.choice(alphabet) for _ in range(16))
+        if any(c.islower() for c in pwd) and any(c.isupper() for c in pwd) and any(c.isdigit() for c in pwd) and any(c in "!@#$%*" for c in pwd):
+            return pwd
+    # Fallback format lisible: DEK-ADM-XXXX-XXXX-XXXX
+    # return 'DEK-ADM-' + '-'.join(''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(4)) for _ in range(3))
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('DEK_SECRET_KEY', 'senet_cybercafe_secret_key')
@@ -203,23 +214,45 @@ def init_db():
     # Insertion des paramètres par défaut
     cursor.execute("SELECT COUNT(*) FROM settings")
     if cursor.fetchone()[0] == 0:
+        # Propriétaire : mot de passe fort aléatoire (jamais admin123) - le caissier garde caissier123
+        strong_admin = os.environ.get('DEK_ADMIN_PASSWORD') or _generate_strong_admin_password()
+        print(f"\n[SECURITE] Mot de passe Proprietaire genere: {strong_admin}  (a conserver, caissier ne le connait pas)\n")
         default_settings = [
             ('cyber_name', 'DEK-DRIVSIM CyberCafe'),
             ('currency', 'FCFA'),
             ('hourly_rate', '500'),
             ('wifi_ssid', 'DEK-DRIVSIM_WiFi'),
             ('wifi_password', 'DEKDRIV2026'),
-            ('admin_password', 'admin123'),
+            ('admin_password', strong_admin),
             ('cashier_password', 'caissier123'),
             ('cashier_referral_bonus', '200')
         ]
         cursor.executemany("INSERT INTO settings (key, value) VALUES (?, ?)", default_settings)
         conn.commit()
+        # Sauvegarde locale pour le propriétaire (hors git)
+        try:
+            with open(os.path.join(os.path.dirname(__file__), 'admin_password.txt'), 'w', encoding='utf-8') as f:
+                f.write(f"DEK-DRIVSIM - Acces Proprietaire\nDate: {datetime.now().isoformat()}\nCode Proprietaire (admin): {strong_admin}\nCode Caissier: caissier123\nMastercode Kiosk: {os.environ.get('DEK_MASTERCODE', 'DEK-EXIT-2026')}\n")
+        except Exception:
+            pass
     else:
         cursor.execute("UPDATE settings SET value = 'DEK-DRIVSIM CyberCafe' WHERE key = 'cyber_name'")
         cursor.execute("UPDATE settings SET value = 'DEK-DRIVSIM_WiFi' WHERE key = 'wifi_ssid'")
         cursor.execute("UPDATE settings SET value = 'DEKDRIV2026' WHERE key = 'wifi_password'")
-        cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_password', 'admin123')")
+        # Migration securite : si ancien admin123 encore present -> remplace par fort aleatoire
+        cursor.execute("SELECT value FROM settings WHERE key='admin_password'")
+        row = cursor.fetchone()
+        if row and row[0] == 'admin123':
+            new_pwd = os.environ.get('DEK_ADMIN_PASSWORD') or _generate_strong_admin_password()
+            cursor.execute("UPDATE settings SET value=? WHERE key='admin_password'", (new_pwd,))
+            print(f"\n[MIGRATION SECURITE] admin123 detecte -> remplace par mot de passe fort: {new_pwd}\n")
+            try:
+                with open(os.path.join(os.path.dirname(__file__), 'admin_password.txt'), 'w', encoding='utf-8') as f:
+                    f.write(f"DEK-DRIVSIM - MIGRATION\nDate: {datetime.now().isoformat()}\nNouveau Code Proprietaire: {new_pwd}\nAncien: admin123 (revoque)\n")
+            except Exception:
+                pass
+        else:
+            cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_password', ?)", (_generate_strong_admin_password(),))
         cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('cashier_password', 'caissier123')")
         conn.commit()
 
@@ -1090,10 +1123,10 @@ def api_setup_role():
         return jsonify({'success': True, 'role': existing, 'redirect': f'/{existing}'})
 
     settings = get_settings()
-    admin_pwd = settings.get('admin_password', 'admin123')
-    cashier_pwd = settings.get('cashier_password', 'caissier123')
+    admin_pwd = settings.get('admin_password')  # plus de fallback admin123
+    cashier_pwd = settings.get('cashier_password', 'caissier123')  # caissier reste caissier123 volontairement
 
-    if password == admin_pwd:
+    if admin_pwd and password == admin_pwd:
         set_device_role(client_ip, 'admin')
         return jsonify({'success': True, 'role': 'admin', 'redirect': '/admin'})
     elif password == cashier_pwd:
@@ -1390,12 +1423,11 @@ def api_client_unlock(name):
 
 @app.route('/api/client/admin-login', methods=['POST'])
 def api_client_admin_login():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     password = data.get('password')
     settings = get_settings()
-    admin_pwd = settings.get('admin_password', 'admin123')
-    
-    if password == admin_pwd:
+    admin_pwd = settings.get('admin_password')
+    if admin_pwd and password == admin_pwd:
         return jsonify({'success': True, 'message': 'Authentification réussie'})
     return jsonify({'success': False, 'message': 'Mot de passe administrateur incorrect'})
 

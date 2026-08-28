@@ -99,7 +99,16 @@ cd android && ./gradlew assembleRelease
 | **Caissier** | `/cashier` | Vente tickets, recharges, évaluation 14j |
 | **Joueur** | `/player` | Catalogue jeux, déverrouillage ticket/compte |
 
-Détection automatique par `IP` (`/api/setup-role`) + mémorisation `device_roles`. Codes par défaut : `admin123` / `caissier123`.
+Détection automatique par `IP` (`/api/setup-role`) + mémorisation `device_roles`.
+
+**Codes :**
+- **Propriétaire (device)** : **fort & aléatoire 16c** généré au 1er lancement (ex: `pdtq7*8h6QcUM0!N`), stocké dans `cybercafe_manager/admin_password.txt` **jamais partagé au caissier** — le caissier ne peut plus deviner `admin123` (révoqué, migration auto `app.py:242`). Variable `DEK_ADMIN_PASSWORD` pour l'imposer.
+- **Caissier (device)** : `caissier123` **inchangé** (`app.py:227`)
+- **Joueur Admin** : `admin_dek` / `admin123` | **Joueur Caissier** : `caissier_dek` / `caissier123` (comptes joueurs, distincts du code device)
+
+**Mastercode sortie Kiosk PC** : `DEK-EXIT-2026` (ou code propriétaire en fallback) — raccourcis globaux `Ctrl+Alt+Q` / `Ctrl+Shift+Alt+X` / `F12` (`electron-main.cjs:38` + `preload.cjs:6`). `DEK_MASTERCODE` pour le surcharger, `DEK_KIOSK=1` pour `kiosk:true`+`fullscreen`.
+
+Changer mot de passe : dashboard Admin → Settings (whitelist `app.py:1558`) ou `UPDATE settings SET value='...' WHERE key='admin_password'`.
 
 ## Releases
 

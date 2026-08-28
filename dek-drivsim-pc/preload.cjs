@@ -4,4 +4,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getApiBaseUrl: () => ipcRenderer.invoke('get-api-base-url'),
   getLocalIP: () => ipcRenderer.invoke('get-local-ip'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  verifyMastercode: (code) => ipcRenderer.invoke('verify-mastercode', code),
+  getMastercodeHint: () => ipcRenderer.invoke('get-mastercode-hint'),
 })

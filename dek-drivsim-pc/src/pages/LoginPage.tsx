@@ -84,10 +84,10 @@ export default function LoginPage({ onRoleSelected }: { onRoleSelected: (role: s
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-              placeholder="admin123 / caissier123"
+              placeholder="Code d'activation"
               className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-fuchsia-500"
             />
-            <p className="text-[11px] text-slate-500 mt-2">L'appareil mémorisera le rôle (IP). Prochaine fois : accès direct.</p>
+            <p className="text-[11px] text-slate-500 mt-2">L'appareil mémorisera le rôle (IP). Propriétaire : voir <span className="font-mono text-fuchsia-400">admin_password.txt</span> (jamais partagé au caissier).</p>
           </div>
 
           <button
@@ -99,13 +99,15 @@ export default function LoginPage({ onRoleSelected }: { onRoleSelected: (role: s
           </button>
 
           <div className="grid grid-cols-2 gap-2 text-[11px]">
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-3">
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 opacity-60">
               <div className="text-slate-500 uppercase font-bold">Propriétaire</div>
-              <div className="font-mono text-cyan-400">admin123</div>
+              <div className="font-mono text-fuchsia-400">••••••••••••••••</div>
+              <div className="text-[10px] text-slate-500">fort &amp; aléatoire</div>
             </div>
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3">
               <div className="text-slate-500 uppercase font-bold">Caissier</div>
               <div className="font-mono text-cyan-400">caissier123</div>
+              <div className="text-[10px] text-emerald-400">inchangé</div>
             </div>
           </div>
         </div>

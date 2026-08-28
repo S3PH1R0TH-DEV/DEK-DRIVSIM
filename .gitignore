@@ -4,6 +4,9 @@
 *.p12
 release.keystore
 dekdrivsim.keystore
+dekdrivsim-release.keystore
+admin_password.txt
+cybercafe_manager/admin_password.txt
 android/keystore.properties
 android/app/release.keystore
 dek-drivsim-pc/android/keystore.properties
