@@ -255,6 +255,18 @@ def init_db():
             cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_password', ?)", (_generate_strong_admin_password(),))
         cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('cashier_password', 'caissier123')")
         conn.commit()
+        # Recree admin_password.txt si supprime mais DB a encore le mot de passe (cas reinstall partielle)
+        try:
+            pwd_path = os.path.join(os.path.dirname(__file__), 'admin_password.txt')
+            if not os.path.exists(pwd_path):
+                cursor.execute("SELECT value FROM settings WHERE key='admin_password'")
+                r = cursor.fetchone()
+                if r and r[0] and r[0] != 'admin123':
+                    with open(pwd_path, 'w', encoding='utf-8') as f:
+                        f.write(f"DEK-DRIVSIM - RECUPERATION\nDate: {datetime.now().isoformat()}\nCode Proprietaire (admin): {r[0]}\nCode Caissier: caissier123\nMastercode Kiosk: {os.environ.get('DEK_MASTERCODE', 'DEK-EXIT-2026')}\n")
+                    print(f"[SECURITE] admin_password.txt regenere depuis la DB\n")
+        except Exception:
+            pass
 
     # Création des comptes d'accès spéciaux
     cursor.execute("SELECT COUNT(*) FROM players WHERE username = 'admin_dek'")
