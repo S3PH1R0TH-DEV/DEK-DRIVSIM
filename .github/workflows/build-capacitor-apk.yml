@@ -13,6 +13,8 @@ on:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: dek-drivsim-pc
@@ -108,12 +110,15 @@ jobs:
       - name: List APK
         run: ls -lh android/app/build/outputs/apk/release/ || ls -lh ../dek-drivsim-pc/android/app/build/outputs/apk/release/ || true
 
-      - name: Create Release (on tag)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Create Release (latest + tag)
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Latest Build' }}
           files: dek-drivsim-pc/android/app/build/outputs/apk/release/dekdrivsim.apk
           generate_release_notes: true
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
