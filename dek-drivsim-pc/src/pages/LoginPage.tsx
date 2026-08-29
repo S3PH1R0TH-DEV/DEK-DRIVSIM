@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
-import { setupRole } from '../api'
+import { setupRole, setApiBaseUrl } from '../api'
 
 export default function LoginPage({ onRoleSelected }: { onRoleSelected: (role: string) => void }) {
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [autoTried, setAutoTried] = useState(false)
+  const isCapacitor = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.()
+  const [serverIP, setServerIP] = useState(() => {
+    try { return localStorage.getItem('DEK_API_BASE')?.replace('http://','').replace(':5000','') || '' } catch { return '' }
+  })
 
   const getLocalIP = async (): Promise<string> => {
     if (typeof window !== 'undefined' && (window as any).electronAPI?.getLocalIP) {
@@ -110,6 +114,34 @@ export default function LoginPage({ onRoleSelected }: { onRoleSelected: (role: s
               <div className="text-[10px] text-emerald-400">inchangé</div>
             </div>
           </div>
+
+          {isCapacitor && (
+            <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+              <label className="block text-xs font-bold text-amber-400 uppercase mb-2">IP du PC Serveur (APK télécommande)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={serverIP}
+                  onChange={(e) => setServerIP(e.target.value)}
+                  placeholder="192.168.1.100"
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono text-sm"
+                />
+                <button
+                  onClick={() => {
+                    const url = `http://${serverIP.trim()}:5000`
+                    localStorage.setItem('DEK_API_BASE', url)
+                    setApiBaseUrl(url)
+                    setMessage(`Serveur configuré: ${url}`)
+                    setTimeout(() => setMessage(null), 2000)
+                  }}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs uppercase"
+                >
+                  OK
+                </button>
+              </div>
+              <p className="text-[10px] text-amber-200/70 mt-1">Visible sur le PC : Dashboard Admin → IP LAN / QR code</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

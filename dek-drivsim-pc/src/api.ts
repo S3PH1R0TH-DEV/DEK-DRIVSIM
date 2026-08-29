@@ -1,12 +1,27 @@
 import axios from 'axios'
 
-// Détection base URL : en dev Vite on passe par le proxy (même origin -> ''), sinon localhost:5000
-// En Capacitor l'utilisateur saisira l'IP du PC (ex: http://192.168.1.50:5000) via écran de config si besoin
+// Détection base URL : Vite proxy en dev, localStorage pour APK, Electron via localhost
 const getApiBaseUrl = () => {
   const envUrl = (import.meta as any).env?.VITE_API_BASE as string | undefined
   if (envUrl) return envUrl
-  if (typeof window !== 'undefined' && window.location.port === '5173') return '' // proxy Vite /api -> 5000
-  // Electron prod et navigateur direct
+  if (typeof window !== 'undefined') {
+    // APK Capacitor : IP du PC saisie par l'utilisateur (stockée)
+    try {
+      const saved = localStorage.getItem('DEK_API_BASE')
+      if (saved) return saved
+      // @ts-ignore Capacitor global
+      if ((window as any).Capacitor?.isNativePlatform?.() || (window as any).Capacitor?.isNative) {
+        // Par défaut on tente l'IP la plus courante, l'écran de config permettra de la changer
+        return localStorage.getItem('DEK_API_BASE') || ''
+      }
+      if (window.location.port === '5173') return '' // proxy Vite /api -> 5000
+      if (window.location.protocol === 'file:' || window.location.protocol === 'capacitor:') {
+        // Electron prod file:// ou Capacitor : si pas d'IP configurée, on reste en relatif
+        // L'écran de config IP s'affichera
+        return localStorage.getItem('DEK_API_BASE') || 'http://127.0.0.1:5000'
+      }
+    } catch {}
+  }
   return 'http://127.0.0.1:5000'
 }
 
