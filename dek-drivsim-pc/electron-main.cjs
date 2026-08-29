@@ -23,20 +23,35 @@ function getResourcesBase() {
 }
 
 function getPythonExecutable() {
-  // Essaye python, puis python3, puis py (Windows launcher)
-  return process.platform === 'win32' ? 'python' : 'python3'
+  const fs = require('fs')
+  const candidates = process.platform === 'win32'
+    ? ['python', 'py', 'python3', 'C:\\Python314\\python.exe', 'C:\\Python313\\python.exe', 'C:\\Python312\\python.exe']
+    : ['python3', 'python']
+  for (const c of candidates) {
+    if (c.includes(':\\')) { if (fs.existsSync(c)) return c; continue }
+    // teste via where/which
+    try { require('child_process').execSync(`${c} --version`, { stdio: 'ignore' }); return c } catch {}
+  }
+  return process.platform === 'win32' ? 'py' : 'python3'
 }
 
 function getFlaskScriptPath() {
-  const base = getResourcesBase()
-  // Dev : ../cybercafe_manager/app.py | Prod : resources/cybercafe_manager/app.py
-  const candidates = [
-    path.join(base, 'cybercafe_manager', 'app.py'),
-    path.join(__dirname, '..', 'cybercafe_manager', 'app.py'),
-    path.join(__dirname, '..', '..', 'cybercafe_manager', 'app.py'),
-  ]
   const fs = require('fs')
-  for (const p of candidates) if (fs.existsSync(p)) return p
+  const candidates = []
+  // Prod packaged: extraResources -> resources/cybercafe_manager
+  if (app.isPackaged) {
+    candidates.push(path.join(process.resourcesPath, 'cybercafe_manager', 'app.py'))
+    candidates.push(path.join(process.resourcesPath, 'app', 'cybercafe_manager', 'app.py'))
+    candidates.push(path.join(path.dirname(process.execPath), 'resources', 'cybercafe_manager', 'app.py'))
+  }
+  // Dev
+  candidates.push(path.join(__dirname, '..', 'cybercafe_manager', 'app.py'))
+  candidates.push(path.join(__dirname, '..', '..', 'cybercafe_manager', 'app.py'))
+  candidates.push(path.join(getResourcesBase(), 'cybercafe_manager', 'app.py'))
+  candidates.push(path.join(process.cwd(), 'cybercafe_manager', 'app.py'))
+  candidates.push('C:\\Program Files\\DEK-DRIVSIM CyberCafe\\resources\\cybercafe_manager\\app.py')
+  for (const p of candidates) { if (fs.existsSync(p)) { console.log('[DEK] Flask found:', p); return p } }
+  console.error('[DEK] Flask NOT FOUND, tried:', candidates)
   return candidates[0]
 }
 
@@ -92,23 +107,46 @@ async function waitForFlask(timeoutMs = 15000) {
 
 function startFlaskServer() {
   if (flaskProcess) return Promise.resolve(true)
+  const fs = require('fs')
   const script = getFlaskScriptPath()
+  if (!fs.existsSync(script)) {
+    const msg = `Flask introuvable: ${script}\n\nVerifiez que le dossier cybercafe_manager a bien ete copie dans resources.\nEssayez de reinstaller dekdrivsim.exe ou copiez manuellement cybercafe_manager depuis les sources.`
+    console.error('[DEK] ' + msg)
+    dialog.showErrorBox('DEK-DRIVSIM - Flask manquant', msg)
+    return Promise.resolve(false)
+  }
   const py = getPythonExecutable()
   const cwd = path.dirname(script)
+  console.log('[DEK] Flask script:', script, '| python:', py)
 
-  console.log('[DEK] Flask script:', script)
+  // Nettoie PYTHONHOME/PYTHONPATH qui causent "Could not find platform independent libraries <prefix>"
+  const cleanEnv = { ...process.env }
+  delete cleanEnv.PYTHONHOME
+  delete cleanEnv.PYTHONPATH
+  cleanEnv.PYTHONIOENCODING = 'utf-8'
+  cleanEnv.DEK_FLASK_PORT = String(FLASK_PORT)
 
   flaskProcess = spawn(py, [script], {
     cwd,
-    env: { ...process.env, PYTHONIOENCODING: 'utf-8', DEK_FLASK_PORT: String(FLASK_PORT) },
-    stdio: ['ignore', 'pipe', 'pipe'],
+    env: cleanEnv,
+    stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
   })
 
   flaskProcess.stdout.on('data', d => console.log('[Flask]', d.toString().trim()))
-  flaskProcess.stderr.on('data', d => console.error('[Flask]', d.toString().trim()))
-  flaskProcess.on('exit', (code) => { console.log('[Flask] exit', code); flaskProcess = null })
-  flaskProcess.on('error', (err) => console.error('[Flask] spawn error', err))
+  flaskProcess.stderr.on('data', d => {
+    const t = d.toString().trim()
+    console.error('[Flask]', t)
+    if (t.includes('Could not find platform') || t.includes("can't open file")) {
+      dialog.showErrorBox('DEK-DRIVSIM - Python/Flask erreur',
+        `${t}\n\nPython: ${py}\nScript: ${script}\n\n1. Installez Python 3.11+ depuis python.org (cocher Add to PATH)\n2. pip install flask flask-cors\n3. Ou reinstallez dekdrivsim.exe`)
+    }
+  })
+  flaskProcess.on('exit', (code) => { console.log('[Flask] exit', code); if (code !== 0 && code !== null) console.error('[Flask] Flask s est arrete, l app restera noire'); flaskProcess = null })
+  flaskProcess.on('error', (err) => {
+    console.error('[Flask] spawn error', err)
+    dialog.showErrorBox('DEK-DRIVSIM - Python introuvable', `Impossible de lancer Python (${py})\n${err.message}\n\nInstallez Python 3.11+ et ajoutez-le au PATH.`)
+  })
 
   return waitForFlask()
 }
