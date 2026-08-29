@@ -37,14 +37,55 @@ app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 
 # --- COUCHE DE BASE DE DONNÉES (DATABASE LAYER CONSOLIDATED) ---
 
-# Détection automatique de l'environnement (Android vs PC) pour stocker la base de données dans un dossier autorisé en écriture !
-if 'ANDROID_ARGUMENT' in os.environ or os.environ.get('ANDROID_PRIVATE'):
-    DB_PATH = os.path.join(os.environ.get('ANDROID_PRIVATE', '/data/data/org.dekdrivsim/files'), 'cybercafe.db')
-else:
-    DB_PATH = os.path.join(os.path.dirname(__file__), 'cybercafe.db')
+def _get_db_path():
+    # Android : stockage privé
+    if 'ANDROID_ARGUMENT' in os.environ or os.environ.get('ANDROID_PRIVATE'):
+        p = os.path.join(os.environ.get('ANDROID_PRIVATE', '/data/data/org.dekdrivsim/files'), 'cybercafe.db')
+        os.makedirs(os.path.dirname(os.path.abspath(p)), exist_ok=True)
+        return p
+    # Windows Program Files est en lecture seule -> utiliser %APPDATA%\DEK-DRIVSIM
+    base_dir = os.path.dirname(__file__)
+    default = os.path.join(base_dir, 'cybercafe.db')
+    # Heuristique : si on est dans Program Files ou dossier non inscriptible
+    try:
+        # Test ecriture
+        if 'Program Files' in os.path.abspath(base_dir) or not os.access(base_dir, os.W_OK):
+            raise OSError('read-only')
+        # Essai ecriture fichier test
+        test = os.path.join(base_dir, '.writetest')
+        with open(test, 'w') as f: f.write('x')
+        os.remove(test)
+        os.makedirs(os.path.dirname(os.path.abspath(default)), exist_ok=True)
+        return default
+    except Exception:
+        appdata = os.getenv('APPDATA') or os.path.expanduser('~')
+        dek_dir = os.path.join(appdata, 'DEK-DRIVSIM')
+        os.makedirs(dek_dir, exist_ok=True)
+        new_path = os.path.join(dek_dir, 'cybercafe.db')
+        # Migration : copie l'ancienne DB si elle existe et la nouvelle n'existe pas
+        if os.path.exists(default) and not os.path.exists(new_path):
+            try:
+                import shutil
+                shutil.copy2(default, new_path)
+                print(f"[DB] Migration Program Files -> {new_path}")
+            except Exception as e:
+                print(f"[DB] Migration echouee: {e}")
+        os.makedirs(os.path.dirname(os.path.abspath(new_path)), exist_ok=True)
+        return new_path
 
-# Le dossier privé Android peut ne pas exister au tout premier lancement.
-os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
+DB_PATH = _get_db_path()
+# Compat : admin_password.txt doit suivre la DB (même dossier inscriptible)
+def _get_admin_pwd_path():
+    try:
+        d = os.path.dirname(DB_PATH)
+        test = os.path.join(d, '.writetest2')
+        with open(test, 'w') as f: f.write('x')
+        os.remove(test)
+        return os.path.join(d, 'admin_password.txt')
+    except Exception:
+        return os.path.join(os.path.dirname(DB_PATH), 'admin_password.txt')
+
+ADMIN_PWD_PATH = _get_admin_pwd_path()
 
 def get_db():
     # Timeout de 30 secondes et pragma busy_timeout pour éviter les blocages de concurrence.
@@ -229,12 +270,12 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO settings (key, value) VALUES (?, ?)", default_settings)
         conn.commit()
-        # Sauvegarde locale pour le propriétaire (hors git)
+        # Sauvegarde locale pour le propriétaire (hors git) - dans dossier inscriptible (APPDATA si Program Files)
         try:
-            with open(os.path.join(os.path.dirname(__file__), 'admin_password.txt'), 'w', encoding='utf-8') as f:
-                f.write(f"DEK-DRIVSIM - Acces Proprietaire\nDate: {datetime.now().isoformat()}\nCode Proprietaire (admin): {strong_admin}\nCode Caissier: caissier123\nMastercode Kiosk: {os.environ.get('DEK_MASTERCODE', 'DEK-EXIT-2026')}\n")
-        except Exception:
-            pass
+            with open(ADMIN_PWD_PATH, 'w', encoding='utf-8') as f:
+                f.write(f"DEK-DRIVSIM - Acces Proprietaire\nDate: {datetime.now().isoformat()}\nCode Proprietaire (admin): {strong_admin}\nCode Caissier: caissier123\nMastercode Kiosk: {os.environ.get('DEK_MASTERCODE', 'DEK-EXIT-2026')}\nDB: {DB_PATH}\n")
+        except Exception as e:
+            print(f"[WARN] Impossible d'ecrire {ADMIN_PWD_PATH}: {e}")
     else:
         cursor.execute("UPDATE settings SET value = 'DEK-DRIVSIM CyberCafe' WHERE key = 'cyber_name'")
         cursor.execute("UPDATE settings SET value = 'DEK-DRIVSIM_WiFi' WHERE key = 'wifi_ssid'")
@@ -247,17 +288,17 @@ def init_db():
             cursor.execute("UPDATE settings SET value=? WHERE key='admin_password'", (new_pwd,))
             print(f"\n[MIGRATION SECURITE] admin123 detecte -> remplace par mot de passe fort: {new_pwd}\n")
             try:
-                with open(os.path.join(os.path.dirname(__file__), 'admin_password.txt'), 'w', encoding='utf-8') as f:
-                    f.write(f"DEK-DRIVSIM - MIGRATION\nDate: {datetime.now().isoformat()}\nNouveau Code Proprietaire: {new_pwd}\nAncien: admin123 (revoque)\n")
-            except Exception:
-                pass
+                with open(ADMIN_PWD_PATH, 'w', encoding='utf-8') as f:
+                    f.write(f"DEK-DRIVSIM - MIGRATION\nDate: {datetime.now().isoformat()}\nNouveau Code Proprietaire: {new_pwd}\nAncien: admin123 (revoque)\nDB: {DB_PATH}\n")
+            except Exception as e:
+                print(f"[WARN] Impossible d'ecrire {ADMIN_PWD_PATH}: {e}")
         else:
             cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_password', ?)", (_generate_strong_admin_password(),))
         cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('cashier_password', 'caissier123')")
         conn.commit()
         # Recree admin_password.txt si supprime mais DB a encore le mot de passe (cas reinstall partielle)
         try:
-            pwd_path = os.path.join(os.path.dirname(__file__), 'admin_password.txt')
+            pwd_path = ADMIN_PWD_PATH
             if not os.path.exists(pwd_path):
                 cursor.execute("SELECT value FROM settings WHERE key='admin_password'")
                 r = cursor.fetchone()
