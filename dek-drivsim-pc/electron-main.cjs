@@ -5,7 +5,8 @@ const http = require('http')
 const os = require('os')
 
 const MASTERCODE = process.env.DEK_MASTERCODE || 'DEK-EXIT-2026'
-const KIOSK_MODE = process.env.DEK_KIOSK === '1' // mettre DEK_KIOSK=1 pour plein kiosk
+// Kiosk par défaut en prod (installé), fenêtré en dev. Forcer via DEK_KIOSK=0/1
+const KIOSK_MODE = process.env.DEK_KIOSK ? process.env.DEK_KIOSK === '1' : app.isPackaged
 
 // Single instance
 if (!app.requestSingleInstanceLock()) app.quit()
